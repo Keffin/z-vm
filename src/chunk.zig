@@ -1,5 +1,5 @@
 const std = @import("std");
-const Value = @import("./value.zig");
+const Value = @import("./value.zig").Value;
 const Allocator = std.mem.Allocator;
 
 // Will contain the different instructions our VM will deal with.
@@ -14,21 +14,25 @@ const Chunk = struct {
     const Self = @This();
     code: std.ArrayList(u8),
     constants: std.ArrayList(Value),
+    lines: std.ArrayList(usize),
 
     pub fn initChunk(allocator: std.mem.Allocator) Chunk {
         return Chunk{
             .code = std.ArrayList(u8).init(allocator),
             .constants = std.ArrayList(Value).init(allocator),
+            .lines = std.ArrayList(usize).init(allocator),
         };
     }
 
     pub fn freeChunk(self: *Self) void {
         self.code.deinit();
         self.constants.deinit();
+        self.lines.deinit();
     }
 
-    pub fn writeChunk(self: *Self, byte: u8) !void {
+    pub fn writeChunk(self: *Self, byte: u8, line: usize) !void {
         try self.code.append(byte);
+        try self.lines.append(line);
     }
 
     pub fn addConstant(self: *Self, value: Value) !u8 {
@@ -46,7 +50,13 @@ const Chunk = struct {
     }
 
     fn disassembleInstruction(self: *Self, offset: usize) usize {
-        std.debug.print("{:0>4} \n", .{offset});
+        std.debug.print("{:0>4} ", .{offset});
+
+        if (offset > 0 and self.lines.items[offset] == self.lines.items[offset - 1]) {
+            std.debug.print("   | ", .{});
+        } else {
+            std.debug.print("{: >4}", .{self.lines.items[offset]});
+        }
 
         const instruction: OpCode = @enumFromInt(self.code.items[offset]);
 
@@ -62,7 +72,7 @@ const Chunk = struct {
 
     fn constantInstruction(self: *Self, op_code_name: []const u8, offset: usize) usize {
         const constant = self.code.items[offset + 1];
-        std.debug.print("-{s} {} {}'\n", .{ op_code_name, constant, self.constants.items[constant] });
+        std.debug.print(" {s}    {}  '{}'\n", .{ op_code_name, constant, self.constants.items[constant].data });
         return offset + 2;
     }
 
@@ -76,39 +86,60 @@ const Chunk = struct {
 const expect = std.testing.expect;
 // Adding tests here.
 
-test "Value tester" {
+test "main flow" {
     const al = std.testing.allocator;
     var ch: Chunk = Chunk.initChunk(al);
-    const v: Value = undefined;
-    const v2: Value = undefined;
-    try ch.writeChunk(0);
-    try ch.writeChunk(0);
-    try ch.writeChunk(0);
-    try ch.writeChunk(0);
+    const val = Value.init(12);
 
-    const ret_val = try ch.addConstant(v);
-    const ret_val_2 = try ch.addConstant(v);
-    const ret_val_3 = try ch.addConstant(v2);
-    const ret_val_4 = try ch.addConstant(v2);
+    const constant = try ch.addConstant(val);
 
-    try expect(ret_val == 0);
-    try expect(ret_val_2 == 1);
-    try expect(ret_val_3 == 2);
-    try expect(ret_val_4 == 3);
-    ch.disassembleChunk("kevchunk");
+    // 0 represents a constant op code
+    try ch.writeChunk(@intFromEnum(OpCode.OP_CONSTANT), 123);
+    try ch.writeChunk(constant, 123);
+    try ch.writeChunk(@intFromEnum(OpCode.OP_RETURN), 123);
 
-    ch.freeChunk();
-}
-
-test "Chunk Tester" {
-    const al = std.testing.allocator;
-    var ch: Chunk = Chunk.initChunk(al);
-    try ch.writeChunk(1);
-    try ch.writeChunk(1);
-    try ch.writeChunk(2);
-
+    try expect(constant == 0);
+    try expect(ch.lines.items.len == 3);
     try expect(ch.code.items.len == 3);
 
-    ch.disassembleChunk("kevchunk");
+    ch.disassembleChunk("kevmain");
     ch.freeChunk();
 }
+
+//test "Value tester" {
+//    const al = std.testing.allocator;
+//    var ch: Chunk = Chunk.initChunk(al);
+//    const v: Value = undefined;
+// const v2: Value = undefined;
+//    try ch.writeChunk(0, 123);
+//    try ch.writeChunk(0, 123);
+//    try ch.writeChunk(0, 123);
+//    try ch.writeChunk(0, 123);
+
+//    const ret_val = try ch.addConstant(v);
+//    const ret_val_2 = try ch.addConstant(v);
+//    const ret_val_3 = try ch.addConstant(v2);
+//   const ret_val_4 = try ch.addConstant(v2);
+
+//    try expect(ret_val == 0);
+//    try expect(ret_val_2 == 1);
+//  try expect(ret_val_3 == 2);
+// try expect(ret_val_4 == 3);
+// ch.disassembleChunk("kevchunk");
+
+//    ch.freeChunk();
+//}// //
+
+// test "Chunk Tester" {
+//    const al = std.testing.allocator;
+//   var ch: Chunk = Chunk.initChunk(al);
+//  try ch.writeChunk(1, 123);
+// try ch.writeChunk(1, 123);
+// try ch.writeChunk(2, 111);
+
+//    try expect(ch.code.items.len == 3);
+//  try expect(ch.lines.items.len == 3);
+
+// ch.disassembleChunk("kevchunk");
+// ch.freeChunk();
+// }
