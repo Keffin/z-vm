@@ -3,14 +3,14 @@ const Value = @import("./value.zig").Value;
 const Allocator = std.mem.Allocator;
 
 // Will contain the different instructions our VM will deal with.
-const OpCode = enum(u8) {
+pub const OpCode = enum(u8) {
     OP_CONSTANT,
     OP_RETURN, // Return from currenct function.
     TMP_VAL,
 };
 
 // Bytecode is a series of instructions, i.e a dynamic list.
-const Chunk = struct {
+pub const Chunk = struct {
     const Self = @This();
     code: std.ArrayList(u8),
     constants: std.ArrayList(Value),
